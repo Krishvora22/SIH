@@ -1,1 +1,6 @@
-{}
+{
+  "/api/auth/signup/route": "app/api/auth/signup/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/doctors/route": "app/api/doctors/route.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js"
+}

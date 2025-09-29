@@ -5,13 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { HeartPulse, Phone, Hash, User, Stethoscope, Shield } from "lucide-react";
 
+import { login, signup, setAuthToken } from "@/lib/api";
+
 const Onboarding = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [userRole, setUserRole] = useState<'patient' | 'doctor' | 'healthcare'>('patient');
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
+    password: '',
     mobileNumber: '',
-    otp: ''
+    otp: '',
+    degree: '',
+    experience: '',
+    description: '',
+    profileImage: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isOtpSent, setIsOtpSent] = useState(false);
@@ -25,63 +33,113 @@ const Onboarding = () => {
     }
   };
 
+
+  // New validation for email/password
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.mobileNumber) {
-      newErrors.mobileNumber = 'Mobile number is required';
-    } else if (!/^\d{10}$/.test(formData.mobileNumber)) {
-      newErrors.mobileNumber = 'Please enter a valid 10-digit mobile number';
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email)) {
+      newErrors.email = 'Invalid email';
     }
-
-    if (!formData.otp) {
-      newErrors.otp = 'OTP is required';
-    } else if (!/^\d{6}$/.test(formData.otp)) {
-      newErrors.otp = 'Please enter a valid 6-digit OTP';
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
-
     if (!isLogin) {
       if (!formData.name) {
         newErrors.name = 'Name is required';
       }
+      if (!formData.mobileNumber) {
+        newErrors.mobileNumber = 'Mobile number is required';
+      } else if (!/^\d{10}$/.test(formData.mobileNumber)) {
+        newErrors.mobileNumber = 'Please enter a valid 10-digit mobile number';
+      }
+      if (userRole === 'doctor') {
+        if (!formData.degree) newErrors.degree = 'Degree is required';
+        if (!formData.experience || isNaN(Number(formData.experience))) newErrors.experience = 'Experience is required';
+        if (!formData.description) newErrors.description = 'Description is required';
+      }
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      // Simulate authentication
-      console.log(isLogin ? 'Login' : 'Signup', { ...formData, role: userRole });
-      navigate('/home');
+    const valid = validateForm();
+    console.log('Submitting signup/login:', { formData, userRole, valid });
+    if (!valid) {
+      console.log('Validation errors:', errors);
+      return;
+    }
+    try {
+      if (isLogin) {
+        // Login
+        const resp = await login(formData.email, formData.password);
+        setAuthToken(resp.token);
+        // Redirect based on role
+        if (resp.user?.role === 'DOCTOR') {
+          navigate('/doctor-panel');
+        } else {
+          navigate('/home');
+        }
+      } else {
+        // Signup
+        let role: 'PATIENT' | 'DOCTOR' | 'PROVIDER' = 'PATIENT';
+        if (userRole === 'doctor') role = 'DOCTOR';
+        else if (userRole === 'healthcare') role = 'PROVIDER';
+        else role = 'PATIENT';
+        const signupData: any = {
+          email: formData.email,
+          password: formData.password,
+          role,
+        };
+        if (role === 'PATIENT') {
+          signupData.fullName = formData.name;
+          signupData.phone = formData.mobileNumber;
+        } else if (role === 'DOCTOR') {
+          signupData.fullName = formData.name;
+          signupData.phone = formData.mobileNumber;
+          signupData.degree = formData.degree;
+          signupData.experience = Number(formData.experience);
+          signupData.description = formData.description;
+          if (formData.profileImage && /^https?:\/\/.+\..+/.test(formData.profileImage)) {
+            signupData.profileImage = formData.profileImage;
+          }
+        } else if (role === 'PROVIDER') {
+          signupData.name = formData.name;
+          signupData.phone = formData.mobileNumber;
+          signupData.address = '';
+          signupData.description = '';
+        }
+        console.log('Calling signup API with:', signupData);
+        await signup(signupData);
+        // After signup, auto-login
+        const resp = await login(formData.email, formData.password);
+        setAuthToken(resp.token);
+        if (resp.user?.role === 'DOCTOR') {
+          navigate('/doctor-panel');
+        } else {
+          navigate('/home');
+        }
+      }
+    } catch (err: any) {
+      setErrors({ general: err.message || 'Authentication failed' });
+      console.error('Signup/Login error:', err);
     }
   };
 
-  const handleSendOtp = () => {
-    if (!formData.mobileNumber) {
-      setErrors({ mobileNumber: 'Please enter mobile number first' });
-      return;
-    }
-    if (!/^\d{10}$/.test(formData.mobileNumber)) {
-      setErrors({ mobileNumber: 'Please enter a valid 10-digit mobile number' });
-      return;
-    }
-    
-    // Simulate sending OTP
-    setIsOtpSent(true);
-    console.log('OTP sent to:', formData.mobileNumber);
-  };
 
-  const handleResendOtp = () => {
-    // Simulate resending OTP
-    console.log('OTP resent to:', formData.mobileNumber);
-  };
+  // Remove OTP logic (not used with backend)
+  const handleSendOtp = () => {};
+  const handleResendOtp = () => {};
 
   const toggleAuthMode = () => {
     setIsLogin(!isLogin);
-    setFormData({ name: '', mobileNumber: '', otp: '' });
+    setFormData({ name: '', email: '', password: '', mobileNumber: '', otp: '', degree: '', experience: '', description: '', profileImage: '' });
     setErrors({});
     setIsOtpSent(false);
   };
@@ -161,73 +219,159 @@ const Onboarding = () => {
                 </div>
               </div>
 
-              {/* Name field for signup only */}
-              {!isLogin && (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="Full Name"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      className="pl-10 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
-                    />
-                  </div>
-                  {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
-                </div>
-              )}
 
-              {/* Mobile Number field */}
+              {/* Email field (always shown) */}
               <div className="space-y-2">
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
-                    type="tel"
-                    placeholder="Enter Mobile Number"
-                    value={formData.mobileNumber}
-                    onChange={(e) => handleInputChange('mobileNumber', e.target.value)}
-                    maxLength={10}
+                    type="email"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
                     className="pl-10 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
                   />
                 </div>
-                {errors.mobileNumber && <p className="text-red-500 text-sm">{errors.mobileNumber}</p>}
+                {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
               </div>
 
-              {/* OTP field */}
+              {/* Password field (always shown) */}
               <div className="space-y-2">
                 <div className="relative">
                   <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <Input
-                    type="number"
-                    placeholder="Enter OTP"
-                    value={formData.otp}
-                    onChange={(e) => handleInputChange('otp', e.target.value)}
-                    maxLength={6}
+                    type="password"
+                    placeholder="Password"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
                     className="pl-10 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
                   />
                 </div>
-                {errors.otp && <p className="text-red-500 text-sm">{errors.otp}</p>}
+                {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
               </div>
+
+
+              {/* Name and Mobile for signup only */}
+              {!isLogin && (
+                <>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Full Name"
+                        value={formData.name}
+                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        className="pl-10 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                      />
+                    </div>
+                    {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Mobile Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        type="tel"
+                        placeholder="Mobile Number"
+                        value={formData.mobileNumber}
+                        onChange={(e) => handleInputChange('mobileNumber', e.target.value)}
+                        maxLength={10}
+                        className="pl-10 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                      />
+                    </div>
+                    {errors.mobileNumber && <p className="text-red-500 text-sm">{errors.mobileNumber}</p>}
+                  </div>
+
+                  {/* Doctor-specific fields */}
+                  {userRole === 'doctor' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Degree <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Stethoscope className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                          <Input
+                            type="text"
+                            placeholder="Degree (e.g. MBBS, MD)"
+                            value={formData.degree}
+                            onChange={(e) => handleInputChange('degree', e.target.value)}
+                            className="pl-10 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                          />
+                        </div>
+                        {errors.degree && <p className="text-red-500 text-sm">{errors.degree}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Experience (years) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            placeholder="Experience in years"
+                            value={formData.experience}
+                            onChange={(e) => handleInputChange('experience', e.target.value)}
+                            min={0}
+                            className="pl-4 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                          />
+                        </div>
+                        {errors.experience && <p className="text-red-500 text-sm">{errors.experience}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Description <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type="text"
+                            placeholder="Short description about you"
+                            value={formData.description}
+                            onChange={(e) => handleInputChange('description', e.target.value)}
+                            className="pl-4 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                          />
+                        </div>
+                        {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Profile Image URL <span className="text-gray-400">(optional)</span>
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type="text"
+                            placeholder="Profile Image URL"
+                            value={formData.profileImage}
+                            onChange={(e) => handleInputChange('profileImage', e.target.value)}
+                            className="pl-4 h-12 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+
+              {/* General error */}
+              {errors.general && <p className="text-red-500 text-center text-sm">{errors.general}</p>}
 
               {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full h-12 text-lg font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition-colors"
               >
-                Verify & Sign In
+                {isLogin ? 'Sign In' : 'Sign Up'}
               </Button>
             </form>
 
-            {/* Resend OTP Link */}
-            <div className="text-center">
-              <button 
-                onClick={handleResendOtp}
-                className="text-green-600 hover:text-green-700 text-sm font-medium transition-colors"
-              >
-                Didn't receive OTP? Resend
-              </button>
-            </div>
+
+            {/* No OTP resend, removed */}
 
             {/* Toggle between Login and Signup */}
             <div className="text-center">

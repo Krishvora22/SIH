@@ -1,3 +1,8 @@
+// Get all doctors
+export async function getDoctors(category?: string) {
+  const url = category ? `/doctors?category=${encodeURIComponent(category)}` : '/doctors';
+  return apiFetch<{ doctors: any[] }>(url);
+}
 // Simple API client for the Vite React app
 // - Uses Vite dev proxy to talk to Next.js backend via `/api`
 // - Automatically includes Authorization header if a token is set
@@ -68,4 +73,25 @@ export async function login(email: string, password: string) {
   });
   setAuthToken(resp.token);
   return resp;
+}
+
+// Signup wrapper for /auth/signup
+export async function signup(data: {
+  email: string;
+  password: string;
+  role: 'PATIENT' | 'DOCTOR' | 'PROVIDER';
+  fullName?: string;
+  phone?: string;
+  degree?: string;
+  experience?: number;
+  description?: string;
+  profileImage?: string;
+  name?: string;
+  address?: string;
+}) {
+  // Returns { user }
+  return apiFetch<{ user: any }>('/auth/signup', {
+    method: 'POST',
+    body: data,
+  });
 }

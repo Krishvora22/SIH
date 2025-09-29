@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,98 +15,49 @@ import {
   User,
   Stethoscope
 } from "lucide-react";
+import { getDoctors } from "@/lib/api";
 
 const DoctorsList = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState("all");
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [specializations, setSpecializations] = useState<string[]>(["all"]);
 
-  // Mock doctors data
-  const doctors = [
-    {
-      id: 1,
-      name: "Dr. Sarah Johnson",
-      specialization: "Cardiologist",
-      rating: 4.8,
-      experience: "12 years",
-      location: "Mumbai, Maharashtra",
-      availability: "Available Now",
-      phone: "+91 98765 43210",
-      image: null,
-      consultationFee: "₹500"
-    },
-    {
-      id: 2,
-      name: "Dr. Rajesh Kumar",
-      specialization: "General Physician",
-      rating: 4.6,
-      experience: "8 years",
-      location: "Delhi, Delhi",
-      availability: "Available in 2 hours",
-      phone: "+91 98765 43211",
-      image: null,
-      consultationFee: "₹300"
-    },
-    {
-      id: 3,
-      name: "Dr. Priya Sharma",
-      specialization: "Neurologist",
-      rating: 4.9,
-      experience: "15 years",
-      location: "Bangalore, Karnataka",
-      availability: "Available Now",
-      phone: "+91 98765 43212",
-      image: null,
-      consultationFee: "₹800"
-    },
-    {
-      id: 4,
-      name: "Dr. Amit Patel",
-      specialization: "Dermatologist",
-      rating: 4.7,
-      experience: "10 years",
-      location: "Ahmedabad, Gujarat",
-      availability: "Available in 1 hour",
-      phone: "+91 98765 43213",
-      image: null,
-      consultationFee: "₹400"
-    },
-    {
-      id: 5,
-      name: "Dr. Neha Singh",
-      specialization: "Pediatrician",
-      rating: 4.8,
-      experience: "9 years",
-      location: "Pune, Maharashtra",
-      availability: "Available Now",
-      phone: "+91 98765 43214",
-      image: null,
-      consultationFee: "₹350"
-    },
-    {
-      id: 6,
-      name: "Dr. Vikram Mehta",
-      specialization: "Orthopedist",
-      rating: 4.5,
-      experience: "11 years",
-      location: "Chennai, Tamil Nadu",
-      availability: "Available in 3 hours",
-      phone: "+91 98765 43215",
-      image: null,
-      consultationFee: "₹600"
-    }
-  ];
+  useEffect(() => {
+    setLoading(true);
+    getDoctors()
+      .then(res => {
+        setDoctors(res.doctors);
+        // Collect unique specializations from doctor categories
+        const specs = new Set<string>();
+        res.doctors.forEach((doc: any) => {
+          if (doc.categories && doc.categories.length > 0) {
+            doc.categories.forEach((cat: any) => specs.add(cat.category.name));
+          }
+        });
+        setSpecializations(["all", ...Array.from(specs)]);
+        setLoading(false);
+      })
+      .catch(e => {
+        setError(e.message || "Failed to load doctors");
+        setLoading(false);
+      });
+  }, []);
 
-  const specializations = [
-    "all", "Cardiologist", "General Physician", "Neurologist", 
-    "Dermatologist", "Pediatrician", "Orthopedist"
-  ];
+  const [selectedDoctor, setSelectedDoctor] = useState<any | null>(null);
 
-  const filteredDoctors = doctors.filter(doctor => {
-    const matchesSearch = doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doctor.specialization.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSpecialization = selectedSpecialization === "all" || 
-                                 doctor.specialization === selectedSpecialization;
+  const filteredDoctors = doctors.filter((doctor: any) => {
+    const name = doctor.fullName || doctor.name || "";
+    const specialization = doctor.categories && doctor.categories.length > 0
+      ? doctor.categories.map((cat: any) => cat.category.name).join(", ")
+      : "";
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      specialization.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSpecialization = selectedSpecialization === "all" ||
+      (doctor.categories && doctor.categories.some((cat: any) => cat.category.name === selectedSpecialization));
     return matchesSearch && matchesSpecialization;
   });
 
@@ -123,7 +74,9 @@ const DoctorsList = () => {
     alert(`Opening chat with ${doctor.name}...`);
   };
 
+  // Placeholder for availability (backend can be extended to provide this)
   const getAvailabilityColor = (availability: string) => {
+    if (!availability) return "text-gray-500";
     if (availability.includes("Available Now")) return "text-green-500";
     if (availability.includes("Available in")) return "text-yellow-500";
     return "text-red-500";
@@ -183,88 +136,118 @@ const DoctorsList = () => {
           </div>
         </div>
 
-        {/* Results Count */}
+        {/* Results Count & Loading/Error */}
         <div className="mb-6">
-          <p className="text-gray-600">
-            Found {filteredDoctors.length} doctor{filteredDoctors.length !== 1 ? 's' : ''}
-            {selectedSpecialization !== "all" && ` in ${selectedSpecialization}`}
-          </p>
+          {loading ? (
+            <p className="text-gray-600">Loading doctors...</p>
+          ) : error ? (
+            <p className="text-red-500">{error}</p>
+          ) : (
+            <p className="text-gray-600">
+              Found {filteredDoctors.length} doctor{filteredDoctors.length !== 1 ? 's' : ''}
+              {selectedSpecialization !== "all" && ` in ${selectedSpecialization}`}
+            </p>
+          )}
         </div>
 
         {/* Doctors Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDoctors.map((doctor) => (
-            <Card key={doctor.id} className="bg-white border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-200">
-              <CardHeader className="pb-4">
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-                    {doctor.image ? (
-                      <img 
-                        src={doctor.image} 
-                        alt={doctor.name}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-8 h-8 text-orange-500" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <CardTitle className="text-lg text-gray-900">{doctor.name}</CardTitle>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <Stethoscope className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-gray-600">{doctor.specialization}</span>
+          {filteredDoctors.map((doctor: any) => {
+            const name = doctor.fullName || doctor.name || "";
+            const specialization = doctor.categories && doctor.categories.length > 0
+              ? doctor.categories.map((cat: any) => cat.category.name).join(", ")
+              : "";
+            return (
+              <Card key={doctor.id} className="bg-white border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => setSelectedDoctor(doctor)}>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                      {doctor.profileImage ? (
+                        <img 
+                          src={doctor.profileImage} 
+                          alt={name}
+                          className="w-16 h-16 rounded-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-8 h-8 text-orange-500" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg text-gray-900">{name}</CardTitle>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Stethoscope className="w-4 h-4 text-green-600" />
+                        <span className="text-sm text-gray-600">{specialization}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Rating and Experience */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1">
-                    <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                    <span className="text-sm font-medium text-gray-900">{doctor.rating}</span>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Experience */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                      <span className="text-sm font-medium text-gray-900">{doctor.experience ?? '-'}</span>
+                    </div>
+                    <span className="text-sm text-gray-600">{doctor.degree ?? ''}</span>
                   </div>
-                  <span className="text-sm text-gray-600">{doctor.experience}</span>
+                  {/* Location (not in schema, placeholder) */}
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-700">{doctor.phone}</span>
+                  </div>
+                  {/* Availability (placeholder) */}
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <span className={`text-sm font-medium ${getAvailabilityColor('')}`}>Available</span>
+                  </div>
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={e => { e.stopPropagation(); handleCallDoctor(doctor); }}
+                      className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center space-x-2 rounded-xl"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span>Call</span>
+                    </Button>
+                    <Button
+                      onClick={e => { e.stopPropagation(); handleMessageDoctor(doctor); }}
+                      variant="outline"
+                      className="border-orange-500 bg-white hover:bg-orange-50 text-orange-500 flex items-center justify-center space-x-2 rounded-xl"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Message</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        {/* Doctor Details Modal */}
+        {selectedDoctor && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 max-w-md w-full shadow-lg relative">
+              <button className="absolute top-2 right-2 text-gray-500" onClick={() => setSelectedDoctor(null)}>&times;</button>
+              <h2 className="text-xl font-bold mb-4">Doctor Details</h2>
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                  {selectedDoctor.profileImage ? (
+                    <img src={selectedDoctor.profileImage} alt={selectedDoctor.fullName || selectedDoctor.name} className="w-16 h-16 rounded-full object-cover" />
+                  ) : (
+                    <User className="w-8 h-8 text-orange-500" />
+                  )}
                 </div>
-
-                {/* Location */}
-                <div className="flex items-center space-x-2">
-                  <MapPin className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">{doctor.location}</span>
+                <div>
+                  <div className="text-lg font-bold">{selectedDoctor.fullName || selectedDoctor.name}</div>
+                  <div className="text-sm text-gray-600">{selectedDoctor.degree}</div>
+                  <div className="text-sm text-gray-600">Experience: {selectedDoctor.experience} years</div>
                 </div>
-
-                {/* Availability */}
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  <span className={`text-sm font-medium ${getAvailabilityColor(doctor.availability)}`}>
-                    {doctor.availability}
-                  </span>
-                </div>
-
-
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    onClick={() => handleCallDoctor(doctor)}
-                    className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center space-x-2 rounded-xl"
-                  >
-                    <Phone className="w-4 h-4" />
-                    <span>Call</span>
-                  </Button>
-                  
-                  <Button
-                    onClick={() => handleMessageDoctor(doctor)}
-                    variant="outline"
-                    className="border-orange-500 bg-white hover:bg-orange-50 text-orange-500 flex items-center justify-center space-x-2 rounded-xl"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Message</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+              <div className="mb-2"><strong>Specializations:</strong> {selectedDoctor.categories && selectedDoctor.categories.length > 0 ? selectedDoctor.categories.map((cat: any) => cat.category.name).join(", ") : '-'}</div>
+              <div className="mb-2"><strong>Description:</strong> {selectedDoctor.description}</div>
+              <div className="mb-2"><strong>Phone:</strong> {selectedDoctor.phone}</div>
+            </div>
+          </div>
+        )}
         </div>
 
         {/* Empty State */}
