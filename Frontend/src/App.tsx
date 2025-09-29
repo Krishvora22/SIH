@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import DoctorPanel from "./pages/DoctorPanel";
+import TelemedicineQueue from "./pages/TelemedicineQueue";
 import CallHistory from "./pages/CallHistory";
 import EmergencyAlert from "./pages/EmergencyAlert";
 import DoctorsList from "./pages/DoctorsList";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/" element={<Onboarding />} />
           <Route path="/home" element={<Dashboard />} />
           <Route path="/doctor-panel" element={<DoctorPanel />} />
+          <Route path="/telemedicine-queue" element={<TelemedicineQueue />} />
           <Route path="/call-history" element={<CallHistory />} />
           <Route path="/emergency" element={<EmergencyAlert />} />
           <Route path="/doctors" element={<DoctorsList />} />
